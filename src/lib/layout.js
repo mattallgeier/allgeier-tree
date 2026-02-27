@@ -154,28 +154,87 @@ export function computeLayout(people) {
 
 /**
  * Builds React Flow edge definitions from the people array.
- * Needs positions to know left/right order for spouse edges.
+ *
+ * Parent→child edges use the custom 'familyEdge' type which renders a
+ * classic "shared horizontal bus" connector:
+ *   - One vertical stub from the parent midpoint down to a bus line
+ *   - One horizontal bus spanning all siblings at busY
+ *   - One vertical stub from the bus down to each child's top handle
+ *
+ * Spouse edges use the built-in 'straight' type (unchanged).
+ *
+ * Needs positions to know node coordinates for bus geometry and
+ * left/right order for spouse edges.
  */
 export function buildEdges(people, positions) {
   const edges = []
   const spouseSeen = new Set()
 
+  // ── Parent-child edges: group siblings by their sorted parent-set key ──
+  // Children who share the exact same set of parents get one shared bus line.
+  const byParentKey = {}
   people.forEach(person => {
-    // Parent → child (solid, arrow down)
-    ;(person.children || []).forEach(childId => {
+    if (!person.parents?.length) return
+    const key = [...person.parents].sort().join('|')
+    if (!byParentKey[key]) {
+      byParentKey[key] = { parentIds: [...person.parents].sort(), childIds: [] }
+    }
+    byParentKey[key].childIds.push(person.id)
+  })
+
+  Object.values(byParentKey).forEach(({ parentIds, childIds }) => {
+    // Guard: skip if none of the listed parents have positions yet
+    const knownParentIds = parentIds.filter(id => positions[id])
+    if (knownParentIds.length === 0) return
+
+    // Horizontal midpoint of all parent card centres
+    const fromX =
+      knownParentIds.reduce((sum, id) => sum + positions[id].x + NODE_WIDTH / 2, 0) /
+      knownParentIds.length
+
+    // Bottom edge of the parent row (parents share the same generation y)
+    const fromY = Math.max(...knownParentIds.map(id => positions[id].y)) + NODE_HEIGHT
+
+    // Bus sits halfway through the vertical gap between parent and child rows
+    const busY = fromY + V_GAP / 2
+
+    const knownChildIds = childIds.filter(id => positions[id])
+    if (knownChildIds.length === 0) return
+
+    const toXs = knownChildIds.map(id => positions[id].x + NODE_WIDTH / 2)
+
+    // Bus spans fromX through all child centres so the parent stub always
+    // lands on the bus line (important for single-child or off-centre cases)
+    const busXLeft  = Math.min(...toXs, fromX)
+    const busXRight = Math.max(...toXs, fromX)
+
+    knownChildIds.forEach((childId, i) => {
       edges.push({
-        id: `pc-${person.id}-${childId}`,
-        source: person.id,
+        id: `family-${parentIds.join('-')}-${childId}`,
+        // React Flow needs a source node ID to track the edge for drag re-renders
+        source: parentIds[0],
         sourceHandle: 'bottom',
         target: childId,
         targetHandle: 'top',
-        type: 'smoothstep',
+        type: 'familyEdge',
         style: { stroke: '#8b6914', strokeWidth: 2 },
         markerEnd: { type: 'arrowclosed', color: '#8b6914' },
+        data: {
+          fromX,
+          fromY,
+          busY,
+          busXLeft,
+          busXRight,
+          // Only the first child's edge draws the parent stub + bus line once;
+          // all other sibling edges draw only their own child stub.
+          drawBus: i === 0,
+        },
       })
     })
+  })
 
-    // Spouse ↔ spouse (dashed, horizontal)
+  // ── Spouse edges — unchanged ──
+  people.forEach(person => {
     ;(person.spouses || []).forEach(spouseId => {
       const key = [person.id, spouseId].sort().join('~')
       if (spouseSeen.has(key)) return
@@ -183,7 +242,7 @@ export function buildEdges(people, positions) {
 
       const posA = positions[person.id]
       const posB = positions[spouseId]
-      const leftId = (posA?.x ?? 0) <= (posB?.x ?? 0) ? person.id : spouseId
+      const leftId  = (posA?.x ?? 0) <= (posB?.x ?? 0) ? person.id : spouseId
       const rightId = leftId === person.id ? spouseId : person.id
 
       edges.push({

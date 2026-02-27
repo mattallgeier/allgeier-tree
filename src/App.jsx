@@ -180,7 +180,52 @@ function PersonNode({ data }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// FamilyEdge — custom edge rendering the "shared horizontal bus" connector
+//
+// React Flow resolves the edge definition's markerEnd object into a ready-to-use
+// SVG url() string and passes it here as the `markerEnd` prop.
+// targetX / targetY are React Flow's live handle coordinates and update in
+// real-time during a node drag, so child stubs visually follow the dragged card.
+// Bus geometry (fromX, fromY, busY, busXLeft, busXRight) lives in `data` and is
+// recomputed by buildEdges each time positions change (on drag-stop or edit).
+// ---------------------------------------------------------------------------
+function FamilyEdge({ targetX, targetY, markerEnd, style, data }) {
+  if (!data) return null
+  const { fromX, fromY, busY, busXLeft, busXRight, drawBus } = data
+  const strokeColor = style?.stroke      || '#8b6914'
+  const strokeWidth = style?.strokeWidth || 2
+
+  // Child stub: live targetX keeps this connected to the card during drag
+  const stubPath = `M ${targetX} ${busY} V ${targetY}`
+
+  return (
+    <g>
+      {/* Parent stub + horizontal bus — rendered once per sibling group */}
+      {drawBus && (
+        <path
+          d={`M ${fromX} ${fromY} V ${busY} M ${busXLeft} ${busY} H ${busXRight}`}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeLinecap="round"
+        />
+      )}
+      {/* Child vertical stub with arrowhead pointing into the child */}
+      <path
+        d={stubPath}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        fill="none"
+        markerEnd={markerEnd}
+        strokeLinecap="round"
+      />
+    </g>
+  )
+}
+
 const nodeTypes = { person: PersonNode }
+const edgeTypes  = { familyEdge: FamilyEdge }
 
 // ---------------------------------------------------------------------------
 // RelationshipPicker — pills + searchable dropdown for one relationship type
@@ -905,6 +950,7 @@ export default function App() {
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           nodesDraggable={true}
           nodesConnectable={false}
           elementsSelectable={false}
