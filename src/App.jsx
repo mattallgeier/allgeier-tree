@@ -117,6 +117,21 @@ function applySyncedEdit(allPeople, oldPerson, newPerson) {
   return result
 }
 
+/**
+ * Pure function: removes a person from the array and clears all references
+ * to that person in every other person's parents/children/spouses arrays.
+ */
+function deletePerson(allPeople, personId) {
+  return allPeople
+    .filter(p => p.id !== personId)
+    .map(p => ({
+      ...p,
+      parents:  (p.parents  || []).filter(id => id !== personId),
+      children: (p.children || []).filter(id => id !== personId),
+      spouses:  (p.spouses  || []).filter(id => id !== personId),
+    }))
+}
+
 // ---------------------------------------------------------------------------
 // PersonNode — card rendered for each person on the canvas
 // ---------------------------------------------------------------------------
@@ -332,14 +347,16 @@ function PersonForm({ draft, onChange, byId, people }) {
 // ---------------------------------------------------------------------------
 // DetailPanel — view mode + edit mode for the selected person
 // ---------------------------------------------------------------------------
-function DetailPanel({ person, byId, people, onSelect, onClose, onSave }) {
+function DetailPanel({ person, byId, people, onSelect, onClose, onSave, onDelete }) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // Exit edit mode whenever the selected person changes
+  // Reset all UI state whenever the selected person changes
   useEffect(() => {
     setIsEditing(false)
     setDraft(null)
+    setConfirmDelete(false)
   }, [person?.id])
 
   function startEdit() {
@@ -386,13 +403,52 @@ function DetailPanel({ person, byId, people, onSelect, onClose, onSave }) {
         </h2>
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
           {!isEditing && (
-            <button onClick={startEdit} style={iconBtnStyle} title="Edit this person">✏️</button>
+            <>
+              <button onClick={startEdit} style={iconBtnStyle} title="Edit this person">✏️</button>
+              <button
+                onClick={() => { setConfirmDelete(true); setIsEditing(false) }}
+                style={iconBtnStyle}
+                title="Delete this person"
+              >🗑</button>
+            </>
           )}
           <button onClick={onClose} style={iconBtnStyle} aria-label="Close">✕</button>
         </div>
       </div>
 
       <hr style={{ border: 'none', borderTop: `1px solid ${THEME.panelBorder}`, margin: '10px 0' }} />
+
+      {/* ── Delete confirmation ── */}
+      {confirmDelete && (
+        <div style={{
+          background: '#fff5f5',
+          border: '1px solid #e08080',
+          borderRadius: 8,
+          padding: '10px 12px',
+          marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 13, color: '#7a1a1a', marginBottom: 6, fontWeight: 600 }}>
+            Delete {person.name}?
+          </div>
+          <div style={{ fontSize: 12, color: '#a05050', marginBottom: 10 }}>
+            This removes the card and clears all links to this person. Cannot be undone.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => onDelete(person.id)}
+              style={{ ...btnStyle, background: '#8b1a1a', flex: 1 }}
+            >
+              Confirm Delete
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              style={{ ...btnStyle, background: THEME.btnSecBg, color: THEME.btnSecText, flex: 1 }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {isEditing ? (
         /* ── Edit mode ── */
@@ -756,6 +812,11 @@ export default function App() {
     setSelectedId(id)
   }
 
+  function handleDeletePerson(id) {
+    mutatePeople(prev => deletePerson(prev, id))
+    setSelectedId(null)
+  }
+
   function handleExport() {
     downloadFamilyJson(people)
   }
@@ -815,6 +876,7 @@ export default function App() {
         onSelect={setSelectedId}
         onClose={() => setSelectedId(null)}
         onSave={handleSaveEdit}
+        onDelete={handleDeletePerson}
       />
 
       {/* ── Add Person modal ── */}
