@@ -85,13 +85,28 @@ function orderGeneration(group) {
 /**
  * Main entry point.
  * Returns { positions: { [id]: { x, y } }, generation: { [id]: number } }
+ *
+ * Layout strategy:
+ *   - "connected" people (anyone with ≥1 parent, child, or spouse) are laid out
+ *     in the main generation-based tree.
+ *   - "isolated" people (zero relationships) are placed in a tidy grid two rows
+ *     below the main tree so their cards don't sit inside the tree's edge paths,
+ *     which would make unrelated nodes look visually connected.
  */
 export function computeLayout(people) {
-  const generation = assignGenerations(people)
+  // Split into connected (part of at least one relationship) and isolated
+  const connected = people.filter(
+    p => (p.parents?.length > 0) || (p.children?.length > 0) || (p.spouses?.length > 0)
+  )
+  const isolated = people.filter(
+    p => !p.parents?.length && !p.children?.length && !p.spouses?.length
+  )
 
-  // Group people by generation
+  // ── Main tree layout (connected people only) ──
+  const generation = assignGenerations(connected)
+
   const genMap = {}
-  people.forEach(p => {
+  connected.forEach(p => {
     const g = generation[p.id]
     if (!genMap[g]) genMap[g] = []
     genMap[g].push(p)
@@ -115,6 +130,24 @@ export function computeLayout(people) {
         }
       })
     })
+
+  // ── Isolated people grid (below the main tree) ──
+  const maxGen = connected.length > 0
+    ? Math.max(...connected.map(p => generation[p.id] ?? 0))
+    : 0
+
+  const ISOLATED_COLS = 8
+  const isolatedStartY = (maxGen + 2) * (NODE_HEIGHT + V_GAP)
+  const isolatedRowWidth = ISOLATED_COLS * NODE_WIDTH + (ISOLATED_COLS - 1) * H_GAP
+
+  isolated.forEach((person, i) => {
+    const col = i % ISOLATED_COLS
+    const row = Math.floor(i / ISOLATED_COLS)
+    positions[person.id] = {
+      x: -isolatedRowWidth / 2 + col * (NODE_WIDTH + H_GAP),
+      y: isolatedStartY + row * (NODE_HEIGHT + V_GAP),
+    }
+  })
 
   return { positions, generation }
 }
