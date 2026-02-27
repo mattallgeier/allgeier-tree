@@ -30,6 +30,38 @@ export function savePeople(people) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// X-position overrides — stored separately from people data
+// ---------------------------------------------------------------------------
+
+const X_OVERRIDES_KEY = 'allgeier-tree-x-overrides'
+
+/**
+ * Loads the user's manually-dragged x-position overrides from localStorage.
+ * Returns a plain object { [personId]: xNumber }.
+ */
+export function loadXOverrides() {
+  try {
+    const raw = localStorage.getItem(X_OVERRIDES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Persists the x-position overrides object to localStorage.
+ */
+export function saveXOverrides(overrides) {
+  try {
+    localStorage.setItem(X_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch (e) {
+    console.warn('Could not save x overrides to localStorage:', e)
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 /**
  * Triggers a browser file download of the current people array as family.json.
  * The user can then commit this file to GitHub to permanently update the site.

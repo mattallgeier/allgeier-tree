@@ -12,7 +12,7 @@ import 'reactflow/dist/style.css'
 
 import familyData from './data/family.json'
 import { computeLayout, buildEdges, NODE_WIDTH } from './lib/layout'
-import { loadPeople, savePeople, downloadFamilyJson } from './lib/storage'
+import { loadPeople, savePeople, downloadFamilyJson, loadXOverrides, saveXOverrides } from './lib/storage'
 
 // ---------------------------------------------------------------------------
 // THEME — Warm & Traditional color palette
@@ -347,7 +347,7 @@ function PersonForm({ draft, onChange, byId, people }) {
 // ---------------------------------------------------------------------------
 // DetailPanel — view mode + edit mode for the selected person
 // ---------------------------------------------------------------------------
-function DetailPanel({ person, byId, people, onSelect, onClose, onSave, onDelete }) {
+function DetailPanel({ person, byId, people, onSelect, onClose, onSave, onDelete, isPositionOverridden, onResetPosition }) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -417,6 +417,21 @@ function DetailPanel({ person, byId, people, onSelect, onClose, onSave, onDelete
       </div>
 
       <hr style={{ border: 'none', borderTop: `1px solid ${THEME.panelBorder}`, margin: '10px 0' }} />
+
+      {/* ── Reset position link (only when card has been manually dragged) ── */}
+      {isPositionOverridden && !isEditing && (
+        <button
+          onClick={() => onResetPosition(person.id)}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: THEME.textLight, fontSize: 11, padding: '0 0 8px 0',
+            textDecoration: 'underline', fontFamily: 'inherit',
+            display: 'block',
+          }}
+        >
+          ↺ Reset card position
+        </button>
+      )}
 
       {/* ── Delete confirmation ── */}
       {confirmDelete && (
@@ -737,6 +752,8 @@ export default function App() {
   const [people, setPeople] = useState(() => loadPeople(familyData.people))
   const [selectedId, setSelectedId] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  // Per-card horizontal position overrides (user-dragged) — persisted separately
+  const [xOverrides, setXOverrides] = useState(() => loadXOverrides())
 
   // Wrap setPeople so every mutation also saves to localStorage
   const mutatePeople = useCallback((updaterFn) => {
@@ -754,8 +771,18 @@ export default function App() {
     return map
   }, [people])
 
-  // Layout positions — recomputed whenever people changes
-  const { positions } = useMemo(() => computeLayout(people), [people])
+  // Raw auto-layout positions — recomputed whenever people changes.
+  // Kept separate so onNodeDrag can always reference the locked y value.
+  const { positions: rawPositions } = useMemo(() => computeLayout(people), [people])
+
+  // Merged positions: raw auto-layout with any user x-overrides applied on top
+  const positions = useMemo(() => {
+    const merged = { ...rawPositions }
+    Object.entries(xOverrides).forEach(([id, x]) => {
+      if (merged[id]) merged[id] = { ...merged[id], x }
+    })
+    return merged
+  }, [rawPositions, xOverrides])
 
   // Build React Flow node array
   const buildNodes = useCallback(
@@ -764,7 +791,6 @@ export default function App() {
       type: 'person',
       position: positions[person.id] ?? { x: 0, y: 0 },
       data: { person, isSelected: person.id === selId },
-      draggable: false,
     })),
     [people, positions]
   )
@@ -785,6 +811,37 @@ export default function App() {
   }, [])
 
   const onPaneClick = useCallback(() => setSelectedId(null), [])
+
+  // Lock the y-axis during drag — only horizontal movement is allowed
+  const onNodeDrag = useCallback((_e, node) => {
+    const lockedY = rawPositions[node.id]?.y ?? node.position.y
+    setNodes(ns =>
+      ns.map(n =>
+        n.id === node.id
+          ? { ...n, position: { x: node.position.x, y: lockedY } }
+          : n
+      )
+    )
+  }, [rawPositions, setNodes])
+
+  // Persist the final x override when the user releases the card
+  const onNodeDragStop = useCallback((_e, node) => {
+    const lockedY = rawPositions[node.id]?.y ?? node.position.y
+    const finalX = node.position.x
+    setXOverrides(prev => {
+      const next = { ...prev, [node.id]: finalX }
+      saveXOverrides(next)
+      return next
+    })
+    // Ensure y is definitively locked in node state
+    setNodes(ns =>
+      ns.map(n =>
+        n.id === node.id
+          ? { ...n, position: { x: finalX, y: lockedY } }
+          : n
+      )
+    )
+  }, [rawPositions, setNodes])
 
   function handleSaveEdit(newPerson) {
     const oldPerson = people.find(p => p.id === newPerson.id)
@@ -817,6 +874,15 @@ export default function App() {
     setSelectedId(null)
   }
 
+  function handleResetPosition(id) {
+    setXOverrides(prev => {
+      const next = { ...prev }
+      delete next[id]
+      saveXOverrides(next)
+      return next
+    })
+  }
+
   function handleExport() {
     downloadFamilyJson(people)
   }
@@ -836,8 +902,10 @@ export default function App() {
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
-          nodesDraggable={false}
+          nodesDraggable={true}
           nodesConnectable={false}
           elementsSelectable={false}
           fitView
@@ -877,6 +945,8 @@ export default function App() {
         onClose={() => setSelectedId(null)}
         onSave={handleSaveEdit}
         onDelete={handleDeletePerson}
+        isPositionOverridden={!!xOverrides[selectedId]}
+        onResetPosition={handleResetPosition}
       />
 
       {/* ── Add Person modal ── */}
