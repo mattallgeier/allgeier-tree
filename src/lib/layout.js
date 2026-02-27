@@ -137,8 +137,8 @@ export function buildEdges(people, positions) {
         target: childId,
         targetHandle: 'top',
         type: 'smoothstep',
-        style: { stroke: '#9ca3af', strokeWidth: 2 },
-        markerEnd: { type: 'arrowclosed', color: '#9ca3af' },
+        style: { stroke: '#8b6914', strokeWidth: 2 },
+        markerEnd: { type: 'arrowclosed', color: '#8b6914' },
       })
     })
 
@@ -160,7 +160,7 @@ export function buildEdges(people, positions) {
         target: rightId,
         targetHandle: 'left',
         type: 'straight',
-        style: { stroke: '#f59e0b', strokeWidth: 2, strokeDasharray: '6 4' },
+        style: { stroke: '#c17f24', strokeWidth: 2, strokeDasharray: '6 4' },
       })
     })
   })
