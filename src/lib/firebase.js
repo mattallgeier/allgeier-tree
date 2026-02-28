@@ -15,13 +15,13 @@ import { getDatabase } from 'firebase/database'
 //   8. Save this file and push to GitHub
 // ---------------------------------------------------------------------------
 const firebaseConfig = {
-  apiKey:            "REPLACE_WITH_YOUR_API_KEY",
-  authDomain:        "REPLACE_WITH_YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL:       "https://REPLACE_WITH_YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId:         "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket:     "REPLACE_WITH_YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
-  appId:             "REPLACE_WITH_YOUR_APP_ID",
+  apiKey:            "AIzaSyDe5P6egFe_daslLugVS7D_rFwX8-20oU0",
+  authDomain:        "allgeier-tree.firebaseapp.com",
+  databaseURL:       "https://allgeier-tree-default-rtdb.firebaseio.com",
+  projectId:         "allgeier-tree",
+  storageBucket:     "allgeier-tree.firebasestorage.app",
+  messagingSenderId: "454590773802",
+  appId:             "1:454590773802:web:72dce81a4b15cc16286153",
 }
 
 export const firebaseApp = initializeApp(firebaseConfig)
