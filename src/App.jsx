@@ -12,7 +12,7 @@ import 'reactflow/dist/style.css'
 
 import familyData from './data/family.json'
 import { computeLayout, buildEdges, NODE_WIDTH } from './lib/layout'
-import { loadPeople, savePeople, downloadFamilyJson, loadXOverrides, saveXOverrides } from './lib/storage'
+import { subscribeToFamily, saveFamily, downloadFamilyJson, loadXOverrides, saveXOverrides } from './lib/storage'
 
 // ---------------------------------------------------------------------------
 // THEME — Warm & Traditional color palette
@@ -794,18 +794,30 @@ const inputStyle = {
 // App — root component
 // ---------------------------------------------------------------------------
 export default function App() {
-  // People array lives in state — persisted to localStorage on every change
-  const [people, setPeople] = useState(() => loadPeople(familyData.people, familyData.version))
+  // People array — loaded from Firebase, shared across all users in real time
+  const [people, setPeople] = useState(familyData.people) // temporary until Firebase loads
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedId, setSelectedId] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
-  // Per-card horizontal position overrides (user-dragged) — persisted separately
+  // Per-card horizontal position overrides (user-dragged) — kept in localStorage,
+  // NOT shared: each user can arrange cards independently
   const [xOverrides, setXOverrides] = useState(() => loadXOverrides())
 
-  // Wrap setPeople so every mutation also saves to localStorage
+  // Subscribe to Firebase on mount — fires immediately with current data and
+  // again whenever any user saves a change (real-time sync)
+  useEffect(() => {
+    const unsubscribe = subscribeToFamily((loadedPeople) => {
+      setPeople(loadedPeople)
+      setIsLoading(false)
+    }, familyData.people)
+    return () => unsubscribe()
+  }, [])
+
+  // Wrap setPeople so every mutation also saves to Firebase
   const mutatePeople = useCallback((updaterFn) => {
     setPeople(prev => {
       const next = updaterFn(prev)
-      savePeople(next, familyData.version)
+      saveFamily(next) // persists to Firebase → all users get the update
       return next
     })
   }, [])
@@ -931,6 +943,22 @@ export default function App() {
 
   function handleExport() {
     downloadFamilyJson(people)
+  }
+
+  // Show a simple splash while the first Firebase response arrives (~0.5s)
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex', height: '100vh', width: '100vw',
+        alignItems: 'center', justifyContent: 'center',
+        background: THEME.pageBg, flexDirection: 'column', gap: 12,
+      }}>
+        <div style={{ fontSize: 22, color: THEME.textMid }}>🌳</div>
+        <div style={{ fontSize: 14, color: THEME.textLight, fontFamily: 'inherit' }}>
+          Loading family tree…
+        </div>
+      </div>
+    )
   }
 
   return (
