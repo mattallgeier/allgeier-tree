@@ -795,7 +795,7 @@ const inputStyle = {
 // ---------------------------------------------------------------------------
 export default function App() {
   // People array lives in state — persisted to localStorage on every change
-  const [people, setPeople] = useState(() => loadPeople(familyData.people))
+  const [people, setPeople] = useState(() => loadPeople(familyData.people, familyData.version))
   const [selectedId, setSelectedId] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
   // Per-card horizontal position overrides (user-dragged) — persisted separately
@@ -805,7 +805,7 @@ export default function App() {
   const mutatePeople = useCallback((updaterFn) => {
     setPeople(prev => {
       const next = updaterFn(prev)
-      savePeople(next)
+      savePeople(next, familyData.version)
       return next
     })
   }, [])

@@ -2,13 +2,17 @@ const STORAGE_KEY = 'allgeier-tree-data'
 
 /**
  * Loads the people array from localStorage.
- * Falls back to the bundled family.json data if nothing is stored yet.
+ * Falls back to the bundled family.json data if nothing is stored yet,
+ * or if the stored version doesn't match the bundled version (meaning
+ * family.json was updated in git and localStorage is stale).
  */
-export function loadPeople(fallbackPeople) {
+export function loadPeople(fallbackPeople, bundledVersion) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return fallbackPeople
     const parsed = JSON.parse(raw)
+    // Stale cache: family.json was updated — discard and use fresh data
+    if (parsed.version !== bundledVersion) return fallbackPeople
     if (Array.isArray(parsed.people) && parsed.people.length > 0) {
       return parsed.people
     }
@@ -19,12 +23,12 @@ export function loadPeople(fallbackPeople) {
 }
 
 /**
- * Persists the current people array to localStorage.
- * Uses the same { people: [...] } envelope as family.json.
+ * Persists the current people array to localStorage, tagged with the
+ * current family.json version so stale data can be detected on load.
  */
-export function savePeople(people) {
+export function savePeople(people, version) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ people }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version, people }))
   } catch (e) {
     console.warn('Could not save to localStorage:', e)
   }
