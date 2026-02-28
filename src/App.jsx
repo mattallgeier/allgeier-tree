@@ -192,28 +192,29 @@ function PersonNode({ data }) {
 // ---------------------------------------------------------------------------
 function FamilyEdge({ targetX, targetY, markerEnd, style, data }) {
   if (!data) return null
-  const { fromX, fromY, busY, busXLeft, busXRight, drawBus } = data
+  const { fromX, fromY, busY, busXLeft, busXRight } = data
   const strokeColor = style?.stroke      || '#8b6914'
   const strokeWidth = style?.strokeWidth || 2
 
-  // Child stub: live targetX keeps this connected to the card during drag
-  const stubPath = `M ${targetX} ${busY} V ${targetY}`
+  // Extend the bus to always cover this child's live handle position.
+  // Each sibling's edge does this independently, so the union of all
+  // their bus paths always spans the full sibling group — even during drag.
+  const extXLeft  = Math.min(busXLeft,  targetX)
+  const extXRight = Math.max(busXRight, targetX)
 
   return (
     <g>
-      {/* Parent stub + horizontal bus — rendered once per sibling group */}
-      {drawBus && (
-        <path
-          d={`M ${fromX} ${fromY} V ${busY} M ${busXLeft} ${busY} H ${busXRight}`}
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeLinecap="round"
-        />
-      )}
-      {/* Child vertical stub with arrowhead pointing into the child */}
+      {/* Parent stub + horizontal bus — drawn by every sibling (overlapping is harmless) */}
       <path
-        d={stubPath}
+        d={`M ${fromX} ${fromY} V ${busY} M ${extXLeft} ${busY} H ${extXRight}`}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* Child vertical stub with arrowhead — uses live targetX/targetY */}
+      <path
+        d={`M ${targetX} ${busY} V ${targetY}`}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         fill="none"

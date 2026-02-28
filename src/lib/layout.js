@@ -225,9 +225,6 @@ export function buildEdges(people, positions) {
           busY,
           busXLeft,
           busXRight,
-          // Only the first child's edge draws the parent stub + bus line once;
-          // all other sibling edges draw only their own child stub.
-          drawBus: i === 0,
         },
       })
     })
