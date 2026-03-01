@@ -752,9 +752,9 @@ function Toolbar({ onAddPerson, onExport }) {
       <button
         onClick={onExport}
         style={{ ...btnStyle, background: THEME.btnSecBg, color: THEME.btnSecText, border: `1px solid ${THEME.cardBorder}` }}
-        title="Download family.json to commit to GitHub"
+        title="Download a local backup of the family data"
       >
-        Export JSON
+        Download Backup
       </button>
     </div>
   )
@@ -809,7 +809,7 @@ export default function App() {
     const unsubscribe = subscribeToFamily((loadedPeople) => {
       setPeople(loadedPeople)
       setIsLoading(false)
-    }, familyData.people)
+    }, familyData.people, familyData.version)
     return () => unsubscribe()
   }, [])
 
@@ -817,7 +817,7 @@ export default function App() {
   const mutatePeople = useCallback((updaterFn) => {
     setPeople(prev => {
       const next = updaterFn(prev)
-      saveFamily(next) // persists to Firebase → all users get the update
+      saveFamily(next, familyData.version) // persists to Firebase → all users get the update
       return next
     })
   }, [])
@@ -962,7 +962,27 @@ export default function App() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+
+      {/* ── Page title ── */}
+      <header style={{
+        flexShrink: 0,
+        height: 44,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: THEME.toolbarBg,
+        borderBottom: `1px solid ${THEME.cardBorder}`,
+        boxShadow: '0 1px 4px rgba(100,60,0,0.08)',
+      }}>
+        <h1 style={{
+          margin: 0, fontSize: 17, fontWeight: 700,
+          color: THEME.textDark, fontFamily: 'inherit', letterSpacing: '0.02em',
+        }}>
+          Allgeier – Uehara Family Tree
+        </h1>
+      </header>
+
+      {/* ── Canvas + Detail panel ── */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
       {/* ── Canvas ── */}
       <div style={{ flex: 1, position: 'relative' }}>
@@ -1023,6 +1043,8 @@ export default function App() {
         isPositionOverridden={!!xOverrides[selectedId]}
         onResetPosition={handleResetPosition}
       />
+
+      </div>{/* end Canvas + Detail panel row */}
 
       {/* ── Add Person modal ── */}
       {showAddModal && (
