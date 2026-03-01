@@ -815,7 +815,7 @@ export default function App() {
     const unsubscribe = subscribeToFamily((loadedPeople) => {
       setPeople(loadedPeople)
       setIsLoading(false)
-    }, familyData.people, familyData.version)
+    }, familyData.people)
     return () => unsubscribe()
   }, [])
 
@@ -823,7 +823,7 @@ export default function App() {
   const mutatePeople = useCallback((updaterFn) => {
     setPeople(prev => {
       const next = updaterFn(prev)
-      saveFamily(next, familyData.version) // persists to Firebase → all users get the update
+      saveFamily(next) // persists to Firebase → all users get the update
       return next
     })
   }, [])

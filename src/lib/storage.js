@@ -19,15 +19,15 @@ const DB_PATH = 'family'
  *   (the bundled family.json) so the tree isn't blank.
  * - Returns an unsubscribe function — call it on component unmount.
  */
-export function subscribeToFamily(onData, seedPeople, bundledVersion) {
+export function subscribeToFamily(onData, seedPeople) {
   const familyRef = ref(database, DB_PATH)
   const unsubscribe = onValue(familyRef, (snapshot) => {
     const data = snapshot.val()
-    if (data?.people?.length > 0 && data.version === bundledVersion) {
-      onData(data.people)
+    if (data?.people?.length > 0) {
+      onData(data.people)  // Firebase is always the source of truth
     } else {
-      // Empty database OR version mismatch (family.json was updated) — reseed
-      set(familyRef, { version: bundledVersion, people: seedPeople })
+      // Database is empty (first-ever load) — seed from family.json
+      set(familyRef, { people: seedPeople })
       onData(seedPeople)
     }
   })
@@ -38,9 +38,9 @@ export function subscribeToFamily(onData, seedPeople, bundledVersion) {
  * Saves the people array to Firebase.
  * All other connected browsers will receive the update automatically.
  */
-export function saveFamily(people, version) {
+export function saveFamily(people) {
   const familyRef = ref(database, DB_PATH)
-  return set(familyRef, { version, people })
+  return set(familyRef, { people })
 }
 
 // ---------------------------------------------------------------------------
