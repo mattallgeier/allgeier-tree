@@ -187,10 +187,8 @@ export function buildEdges(people, positions) {
     const knownParentIds = parentIds.filter(id => positions[id])
     if (knownParentIds.length === 0) return
 
-    // Horizontal midpoint of all parent card centres
-    const fromX =
-      knownParentIds.reduce((sum, id) => sum + positions[id].x + NODE_WIDTH / 2, 0) /
-      knownParentIds.length
+    // X centre of each individual parent card
+    const parentCenters = knownParentIds.map(id => positions[id].x + NODE_WIDTH / 2)
 
     // Bottom edge of the parent row (parents share the same generation y)
     const fromY = Math.max(...knownParentIds.map(id => positions[id].y)) + NODE_HEIGHT
@@ -203,10 +201,10 @@ export function buildEdges(people, positions) {
 
     const toXs = knownChildIds.map(id => positions[id].x + NODE_WIDTH / 2)
 
-    // Bus spans fromX through all child centres so the parent stub always
-    // lands on the bus line (important for single-child or off-centre cases)
-    const busXLeft  = Math.min(...toXs, fromX)
-    const busXRight = Math.max(...toXs, fromX)
+    // Bus spans all parent centres AND all child centres so every card
+    // is visually connected — even when one parent is far to the left/right
+    const busXLeft  = Math.min(...toXs, ...parentCenters)
+    const busXRight = Math.max(...toXs, ...parentCenters)
 
     knownChildIds.forEach((childId, i) => {
       edges.push({
@@ -220,7 +218,7 @@ export function buildEdges(people, positions) {
         style: { stroke: '#8b6914', strokeWidth: 2 },
         markerEnd: { type: 'arrowclosed', color: '#8b6914' },
         data: {
-          fromX,
+          parentCenters,
           fromY,
           busY,
           busXLeft,

@@ -192,7 +192,7 @@ function PersonNode({ data }) {
 // ---------------------------------------------------------------------------
 function FamilyEdge({ targetX, targetY, markerEnd, style, data }) {
   if (!data) return null
-  const { fromX, fromY, busY, busXLeft, busXRight } = data
+  const { parentCenters, fromY, busY, busXLeft, busXRight } = data
   const strokeColor = style?.stroke      || '#8b6914'
   const strokeWidth = style?.strokeWidth || 2
 
@@ -202,11 +202,17 @@ function FamilyEdge({ targetX, targetY, markerEnd, style, data }) {
   const extXLeft  = Math.min(busXLeft,  targetX)
   const extXRight = Math.max(busXRight, targetX)
 
+  // One vertical stub per parent card — each parent's center descends to the bus.
+  // This ensures every parent card is visually connected regardless of spacing.
+  const parentStubs = (parentCenters || [])
+    .map(px => `M ${px} ${fromY} V ${busY}`)
+    .join(' ')
+
   return (
     <g>
-      {/* Parent stub + horizontal bus — drawn by every sibling (overlapping is harmless) */}
+      {/* Parent stubs (one per parent) + horizontal bus — drawn by every sibling (overlapping is harmless) */}
       <path
-        d={`M ${fromX} ${fromY} V ${busY} M ${extXLeft} ${busY} H ${extXRight}`}
+        d={`${parentStubs} M ${extXLeft} ${busY} H ${extXRight}`}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         fill="none"
