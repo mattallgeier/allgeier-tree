@@ -18,17 +18,75 @@ function assignGenerations(people) {
     if (!p.parents || p.parents.length === 0) gen[p.id] = 0
   })
 
-  // Propagate downward: repeat until nothing changes
+  // Propagation + spouse leveling: repeat until nothing changes.
+  //
+  // Four constraint directions per iteration — all only ever INCREASE a
+  // generation number, so the loop is guaranteed to converge:
+  //
+  //  A. children[] downward  — parent's gen → child  gets parent_gen + 1
+  //  C. parents[]  downward  — parent's gen → self   gets parent_gen + 1
+  //  D. parents[]  upward    — self's gen   → parent gets self_gen  - 1
+  //  E. spouses    leveling  — spouses share max(gen_a, gen_b)
+  //
+  // Why D but not B?
+  //   D reads the CHILD'S own parents[] array to push the parent up. This is
+  //   reliable because each person's parents[] is typically entered correctly.
+  //   B (removed) read the PARENT'S children[] to push the parent up. That
+  //   proved error-prone: incorrect or circular children[] entries in Firebase
+  //   cascaded through the tree and pushed distant ancestors (Thomas Prence,
+  //   George Ulrich Allgeier, etc.) far below their actual descendants.
+  //   D alone is sufficient to fix FC Carroll Allgeier and Masaru Uehara.
+  //
+  // Why E must live INSIDE this loop:
+  //   When one spouse's generation is raised by a deeper lineage (e.g. Barbara
+  //   Jackson anchored at gen 11 by the Freeman tree), the other spouse (FC
+  //   Charles) must be leveled up immediately so that D can pull THEIR parents
+  //   (FC Carroll, Masaru, etc.) to the correct row in the very next iteration.
   let changed = true
   while (changed) {
     changed = false
     people.forEach(person => {
-      if (gen[person.id] === undefined) return
+      // ── Via children[] — downward only (A) ──
       ;(person.children || []).forEach(childId => {
-        const proposed = gen[person.id] + 1
-        if (gen[childId] === undefined || gen[childId] < proposed) {
-          gen[childId] = proposed
-          changed = true
+        // A. Downward: if I have a gen, my child is at least my gen + 1
+        if (gen[person.id] !== undefined) {
+          const proposed = gen[person.id] + 1
+          if (gen[childId] === undefined || gen[childId] < proposed) {
+            gen[childId] = proposed
+            changed = true
+          }
+        }
+      })
+
+      // ── Via parents[] — downward (C) and upward (D) ──
+      ;(person.parents || []).forEach(parentId => {
+        // C. Downward: if my parent has a gen, I am at least parent_gen + 1
+        if (gen[parentId] !== undefined) {
+          const proposed = gen[parentId] + 1
+          if (gen[person.id] === undefined || gen[person.id] < proposed) {
+            gen[person.id] = proposed
+            changed = true
+          }
+        }
+        // D. Upward: if I have a gen, my parent must be at least my gen - 1
+        if (gen[person.id] !== undefined) {
+          const proposed = gen[person.id] - 1
+          if (gen[parentId] === undefined || gen[parentId] < proposed) {
+            gen[parentId] = proposed
+            changed = true
+          }
+        }
+      })
+
+      // ── E. Spouse leveling ──
+      ;(person.spouses || []).forEach(spouseId => {
+        const g1 = gen[person.id]
+        const g2 = gen[spouseId]
+        if (g1 !== undefined && (g2 === undefined || g2 < g1)) {
+          gen[spouseId] = g1; changed = true
+        }
+        if (g2 !== undefined && (g1 === undefined || g1 < g2)) {
+          gen[person.id] = g2; changed = true
         }
       })
     })
@@ -39,7 +97,9 @@ function assignGenerations(people) {
     if (gen[p.id] === undefined) gen[p.id] = 0
   })
 
-  // Spouses must share the same row — take the max of the two
+  // Final spouse leveling pass — catches any spouse pairs where one partner
+  // was assigned only by the fallback above (gen 0) and needs to be leveled
+  // up to match their spouse's already-converged generation.
   changed = true
   while (changed) {
     changed = false
