@@ -11,8 +11,12 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 
 import familyData from './data/family.json'
-import { computeLayout, buildEdges, NODE_WIDTH } from './lib/layout'
-import { subscribeToFamily, saveFamily, downloadFamilyJson, loadXOverrides, saveXOverrides } from './lib/storage'
+import { computeLayout, buildEdges, NODE_WIDTH, NODE_HEIGHT } from './lib/layout'
+
+// How close (in flow-coordinate pixels) the dragged card's centre must be to a
+// relative's centre before it snaps into alignment.
+const SNAP_THRESHOLD = 20
+import { subscribeToFamily, saveFamily, downloadFamilyJson, subscribeToXOverrides, saveXOverride, removeXOverride } from './lib/storage'
 
 // ---------------------------------------------------------------------------
 // THEME — Warm & Traditional color palette
@@ -805,9 +809,14 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedId, setSelectedId] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
-  // Per-card horizontal position overrides (user-dragged) — kept in localStorage,
-  // NOT shared: each user can arrange cards independently
-  const [xOverrides, setXOverrides] = useState(() => loadXOverrides())
+  // Per-card horizontal position overrides (user-dragged) — stored in Firebase
+  // so all devices share the same layout automatically
+  const [xOverrides, setXOverrides] = useState({})
+  // Snap-to-align state: flow-coordinate bounding box of the vertical guide
+  // line shown while dragging near a parent/child centre, or null when inactive.
+  const [snapGuide, setSnapGuide]   = useState(null) // { x, y, height } in flow coords
+  // Live ReactFlow viewport — updated via onMove so we can convert flow→screen
+  const [rfViewport, setRfViewport] = useState({ x: 0, y: 0, zoom: 1 })
 
   // Subscribe to Firebase on mount — fires immediately with current data and
   // again whenever any user saves a change (real-time sync)
@@ -816,6 +825,14 @@ export default function App() {
       setPeople(loadedPeople)
       setIsLoading(false)
     }, familyData.people)
+    return () => unsubscribe()
+  }, [])
+
+  // Subscribe to shared x-position overrides in Firebase — all devices stay in sync
+  useEffect(() => {
+    const unsubscribe = subscribeToXOverrides((overrides) => {
+      setXOverrides(overrides)
+    })
     return () => unsubscribe()
   }, [])
 
@@ -876,27 +893,60 @@ export default function App() {
 
   const onPaneClick = useCallback(() => setSelectedId(null), [])
 
-  // Lock the y-axis during drag — only horizontal movement is allowed
+  // Lock the y-axis during drag — only horizontal movement is allowed.
+  // While dragging, also check whether the card's centre is close to any
+  // parent or child card's centre; if so, snap into alignment and show a
+  // dashed vertical guide line between the two cards.
   const onNodeDrag = useCallback((_e, node) => {
-    const lockedY = rawPositions[node.id]?.y ?? node.position.y
+    const lockedY    = rawPositions[node.id]?.y ?? node.position.y
+    const dragCenterX = node.position.x + NODE_WIDTH / 2
+
+    // Gather direct relatives (parents + children)
+    const person      = people.find(p => p.id === node.id)
+    const relativeIds = [
+      ...(person?.parents  || []),
+      ...(person?.children || []),
+    ]
+
+    // Test each relative for centre alignment
+    let snappedX = node.position.x
+    let guide    = null
+
+    for (const relId of relativeIds) {
+      const relPos = positions[relId]
+      if (!relPos) continue
+      const relCenterX = relPos.x + NODE_WIDTH / 2
+      if (Math.abs(dragCenterX - relCenterX) < SNAP_THRESHOLD) {
+        snappedX         = relCenterX - NODE_WIDTH / 2   // align centres
+        const targetY    = relPos.y
+        const minY       = Math.min(lockedY, targetY)
+        const maxY       = Math.max(lockedY, targetY)
+        guide = {
+          x:      relCenterX - 1,                        // centre the 2-px line
+          y:      minY,
+          height: maxY - minY + NODE_HEIGHT,
+        }
+        break
+      }
+    }
+
+    setSnapGuide(guide)
+
     setNodes(ns =>
       ns.map(n =>
         n.id === node.id
-          ? { ...n, position: { x: node.position.x, y: lockedY } }
+          ? { ...n, position: { x: snappedX, y: lockedY } }
           : n
       )
     )
-  }, [rawPositions, setNodes])
+  }, [rawPositions, positions, people, setNodes])
 
   // Persist the final x override when the user releases the card
   const onNodeDragStop = useCallback((_e, node) => {
+    setSnapGuide(null)  // hide the alignment guide
     const lockedY = rawPositions[node.id]?.y ?? node.position.y
     const finalX = node.position.x
-    setXOverrides(prev => {
-      const next = { ...prev, [node.id]: finalX }
-      saveXOverrides(next)
-      return next
-    })
+    saveXOverride(node.id, finalX) // Firebase → triggers subscribeToXOverrides → setXOverrides
     // Ensure y is definitively locked in node state
     setNodes(ns =>
       ns.map(n =>
@@ -939,12 +989,7 @@ export default function App() {
   }
 
   function handleResetPosition(id) {
-    setXOverrides(prev => {
-      const next = { ...prev }
-      delete next[id]
-      saveXOverrides(next)
-      return next
-    })
+    removeXOverride(id) // Firebase → triggers subscribeToXOverrides → setXOverrides
   }
 
   function handleExport() {
@@ -1004,6 +1049,7 @@ export default function App() {
           onPaneClick={onPaneClick}
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
+          onMove={(_e, vp) => setRfViewport(vp)}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           nodesDraggable={true}
@@ -1023,6 +1069,27 @@ export default function App() {
             maskColor={`rgba(245,230,200,0.75)`}
           />
         </ReactFlow>
+
+        {/* Snap-to-align guide line — shown while dragging near a relative's centre */}
+        {snapGuide && (() => {
+          const sx = snapGuide.x * rfViewport.zoom + rfViewport.x
+          const sy = snapGuide.y * rfViewport.zoom + rfViewport.y
+          const sh = snapGuide.height * rfViewport.zoom
+          return (
+            <div
+              style={{
+                position:     'absolute',
+                left:         sx,
+                top:          sy,
+                width:        2,
+                height:       sh,
+                borderLeft:   '2px dashed #c17f24',
+                pointerEvents: 'none',
+                zIndex:       999,
+              }}
+            />
+          )
+        })()}
 
         {/* Legend */}
         <div style={{

@@ -1,4 +1,4 @@
-import { ref, set, onValue } from 'firebase/database'
+import { ref, set, update, onValue } from 'firebase/database'
 import { database } from './firebase'
 
 // ---------------------------------------------------------------------------
@@ -44,27 +44,39 @@ export function saveFamily(people) {
 }
 
 // ---------------------------------------------------------------------------
-// X-position overrides — kept in localStorage (per-user visual preference,
-// not shared family data — each user can arrange cards independently)
+// X-position overrides — stored in Firebase so all devices share the same layout
 // ---------------------------------------------------------------------------
 
-const X_OVERRIDES_KEY = 'allgeier-tree-x-overrides'
+const X_OVERRIDES_PATH = 'layout/xOverrides'
 
-export function loadXOverrides() {
-  try {
-    const raw = localStorage.getItem(X_OVERRIDES_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
+/**
+ * Subscribes to xOverrides in Firebase.
+ * Calls onData(overrides) immediately and on every remote change.
+ * Returns an unsubscribe function — call it on component unmount.
+ */
+export function subscribeToXOverrides(onData) {
+  const xRef = ref(database, X_OVERRIDES_PATH)
+  const unsubscribe = onValue(xRef, (snapshot) => {
+    onData(snapshot.val() ?? {})
+  })
+  return unsubscribe
 }
 
-export function saveXOverrides(overrides) {
-  try {
-    localStorage.setItem(X_OVERRIDES_KEY, JSON.stringify(overrides))
-  } catch (e) {
-    console.warn('Could not save x overrides to localStorage:', e)
-  }
+/**
+ * Saves a single card's x-position to Firebase.
+ * Uses update() so concurrent writes from different devices don't overwrite each other.
+ */
+export function saveXOverride(personId, x) {
+  const xRef = ref(database, X_OVERRIDES_PATH)
+  return update(xRef, { [personId]: x })
+}
+
+/**
+ * Removes a single card's x-override from Firebase (resets to auto-layout position).
+ */
+export function removeXOverride(personId) {
+  const xRef = ref(database, `${X_OVERRIDES_PATH}/${personId}`)
+  return set(xRef, null)
 }
 
 // ---------------------------------------------------------------------------
