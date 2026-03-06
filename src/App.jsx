@@ -17,6 +17,8 @@ import { computeLayout, buildEdges, NODE_WIDTH, NODE_HEIGHT } from './lib/layout
 // relative's centre before it snaps into alignment.
 const SNAP_THRESHOLD = 20
 import { subscribeToFamily, saveFamily, downloadFamilyJson, subscribeToXOverrides, saveXOverride, removeXOverride } from './lib/storage'
+import { auth } from './lib/firebase'
+import { signInAnonymously } from 'firebase/auth'
 
 // ---------------------------------------------------------------------------
 // THEME — Warm & Traditional color palette
@@ -817,6 +819,12 @@ export default function App() {
   const [snapGuide, setSnapGuide]   = useState(null) // { x, y, height } in flow coords
   // Live ReactFlow viewport — updated via onMove so we can convert flow→screen
   const [rfViewport, setRfViewport] = useState({ x: 0, y: 0, zoom: 1 })
+
+  // Sign in anonymously so Firebase write rules (auth != null) are satisfied
+  // without requiring a login UI. Every visitor gets a silent anonymous token.
+  useEffect(() => {
+    signInAnonymously(auth).catch(console.error)
+  }, [])
 
   // Subscribe to Firebase on mount — fires immediately with current data and
   // again whenever any user saves a change (real-time sync)
