@@ -275,8 +275,7 @@ export function buildEdges(people, positions) {
         target: childId,
         targetHandle: 'top',
         type: 'familyEdge',
-        style: { stroke: '#8b6914', strokeWidth: 2 },
-        markerEnd: { type: 'arrowclosed', color: '#8b6914' },
+        style: { stroke: '#6d4a10', strokeWidth: 2.5 },
         data: {
           parentCenters,
           fromY,
@@ -307,7 +306,7 @@ export function buildEdges(people, positions) {
         target: rightId,
         targetHandle: 'left',
         type: 'straight',
-        style: { stroke: '#c17f24', strokeWidth: 2, strokeDasharray: '6 4' },
+        style: { stroke: '#a06518', strokeWidth: 2.5, strokeDasharray: '6 4' },
       })
     })
   })

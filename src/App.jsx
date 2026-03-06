@@ -210,49 +210,81 @@ function PersonNode({ data }) {
 // ---------------------------------------------------------------------------
 // FamilyEdge — custom edge rendering the "shared horizontal bus" connector
 //
-// React Flow resolves the edge definition's markerEnd object into a ready-to-use
-// SVG url() string and passes it here as the `markerEnd` prop.
 // targetX / targetY are React Flow's live handle coordinates and update in
 // real-time during a node drag, so child stubs visually follow the dragged card.
-// Bus geometry (fromX, fromY, busY, busXLeft, busXRight) lives in `data` and is
+// Bus geometry (fromY, busY, busXLeft, busXRight) lives in `data` and is
 // recomputed by buildEdges each time positions change (on drag-stop or edit).
+//
+// Visual features:
+//   • Junction dots at every parent-stub/bus and child-stub/bus intersection
+//   • Rounded endcaps on all strokes
+//   • Custom open-chevron arrowhead pointing toward the child card
+//   • Richer sepia stroke colour
 // ---------------------------------------------------------------------------
-function FamilyEdge({ targetX, targetY, markerEnd, style, data }) {
+const ARROW_H = 7   // chevron height (px)
+const ARROW_W = 5   // chevron half-width (px)
+const DOT_R   = 3   // junction dot radius (px)
+
+function FamilyEdge({ targetX, targetY, style, data }) {
   if (!data) return null
   const { parentCenters, fromY, busY, busXLeft, busXRight } = data
-  const strokeColor = style?.stroke      || '#8b6914'
-  const strokeWidth = style?.strokeWidth || 2
+  const strokeColor = style?.stroke      || '#6d4a10'
+  const strokeWidth = style?.strokeWidth || 2.5
 
   // Extend the bus to always cover this child's live handle position.
-  // Each sibling's edge does this independently, so the union of all
-  // their bus paths always spans the full sibling group — even during drag.
   const extXLeft  = Math.min(busXLeft,  targetX)
   const extXRight = Math.max(busXRight, targetX)
 
-  // One vertical stub per parent card — each parent's center descends to the bus.
-  // This ensures every parent card is visually connected regardless of spacing.
-  const parentStubs = (parentCenters || [])
-    .map(px => `M ${px} ${fromY} V ${busY}`)
-    .join(' ')
+  const parents = parentCenters || []
 
   return (
     <g>
-      {/* Parent stubs (one per parent) + horizontal bus — drawn by every sibling (overlapping is harmless) */}
+      {/* ── Parent stubs — one vertical per parent ── */}
+      {parents.map((px, i) => (
+        <path
+          key={i}
+          d={`M ${px} ${fromY} V ${busY}`}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeLinecap="round"
+        />
+      ))}
+
+      {/* ── Horizontal bus spanning all parents and children ── */}
       <path
-        d={`${parentStubs} M ${extXLeft} ${busY} H ${extXRight}`}
+        d={`M ${extXLeft} ${busY} H ${extXRight}`}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         fill="none"
         strokeLinecap="round"
       />
-      {/* Child vertical stub with arrowhead — uses live targetX/targetY */}
+
+      {/* ── Child vertical stub — stops just above card to leave room for chevron ── */}
       <path
-        d={`M ${targetX} ${busY} V ${targetY}`}
+        d={`M ${targetX} ${busY} V ${targetY - ARROW_H}`}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         fill="none"
-        markerEnd={markerEnd}
         strokeLinecap="round"
+      />
+
+      {/* ── Junction dots at every parent-bus intersection ── */}
+      {parents.map((px, i) => (
+        <circle key={`pd-${i}`} cx={px} cy={busY} r={DOT_R} fill={strokeColor} />
+      ))}
+
+      {/* ── Junction dot at child-bus intersection ── */}
+      <circle cx={targetX} cy={busY} r={DOT_R} fill={strokeColor} />
+
+      {/* ── Open chevron arrowhead pointing down toward child card ── */}
+      <path
+        d={`M ${targetX - ARROW_W} ${targetY - ARROW_H} L ${targetX} ${targetY} L ${targetX + ARROW_W} ${targetY - ARROW_H}`}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </g>
   )
@@ -1128,7 +1160,7 @@ export default function App() {
                 top:          sy,
                 width:        2,
                 height:       sh,
-                borderLeft:   '2px dashed #c17f24',
+                borderLeft:   '2px dashed #a06518',
                 pointerEvents: 'none',
                 zIndex:       999,
               }}
@@ -1144,8 +1176,8 @@ export default function App() {
           border: `1px solid ${THEME.cardBorder}`,
           boxShadow: '0 1px 4px rgba(100,60,0,0.1)',
         }}>
-          <LegendItem color="#8b6914" dash={false} label="Parent → child" />
-          <LegendItem color="#c17f24" dash={true}  label="Spouses" />
+          <LegendItem color="#6d4a10" dash={false} label="Parent → child" />
+          <LegendItem color="#a06518" dash={true}  label="Spouses" />
         </div>
       </div>
 
