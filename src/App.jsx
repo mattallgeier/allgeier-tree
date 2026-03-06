@@ -48,6 +48,9 @@ const THEME = {
   toolbarBg:           'rgba(253,246,233,0.95)',
   searchBg:            '#fdf6e9',
   handleColor:         '#c8a060',
+  fontTitle:           "'Cinzel', serif",
+  fontSerif:           "'Playfair Display', serif",
+  headerBg:            'linear-gradient(180deg, #f0d9a8 0%, #e8cc90 100%)',
 }
 
 // ---------------------------------------------------------------------------
@@ -153,27 +156,45 @@ function PersonNode({ data }) {
   return (
     <div
       style={{
+        position: 'relative',
         width: NODE_WIDTH,
-        padding: '10px 14px',
+        padding: '12px 14px 10px',
         borderRadius: 10,
         border: `2px solid ${isSelected ? THEME.cardSelectedBorder : THEME.cardBorder}`,
-        background: isSelected ? THEME.cardSelectedBg : THEME.cardBg,
-        boxShadow: isSelected ? THEME.cardGlow : '0 2px 6px rgba(100,60,0,0.12)',
+        background: isSelected
+          ? 'linear-gradient(180deg, #fff8ee 0%, #ffefd4 100%)'
+          : 'linear-gradient(180deg, #fffef8 0%, #fdf5e4 100%)',
+        boxShadow: isSelected
+          ? `${THEME.cardGlow}, 0 3px 10px rgba(100,60,0,0.18)`
+          : '0 2px 8px rgba(100,60,0,0.15)',
         cursor: 'pointer',
         transition: 'border-color 0.15s, box-shadow 0.15s',
         userSelect: 'none',
+        overflow: 'hidden',
       }}
     >
+      {/* Gold accent bar */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+        background: `linear-gradient(90deg, ${THEME.cardBorder}, #e8b84a, ${THEME.cardBorder})`,
+      }} />
+
       <Handle type="target" position={Position.Top}    id="top"    style={handleStyle} />
       <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
       <Handle type="source" position={Position.Right}  id="right"  style={handleStyle} />
       <Handle type="target" position={Position.Left}   id="left"   style={handleStyle} />
 
-      <div style={{ fontWeight: 700, fontSize: 13, color: THEME.textDark, lineHeight: 1.3 }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: THEME.textDark, lineHeight: 1.3, fontFamily: THEME.fontSerif }}>
         {person.name}
       </div>
+      {(person.birthDate || person.deathDate) && (
+        <div style={{
+          height: 1, margin: '5px 0 4px',
+          background: 'linear-gradient(90deg, transparent, rgba(180,130,60,0.4), transparent)',
+        }} />
+      )}
       {person.birthDate && (
-        <div style={{ fontSize: 11, color: THEME.textMid, marginTop: 3 }}>
+        <div style={{ fontSize: 11, color: THEME.textMid }}>
           b.&nbsp;{person.birthDate}{person.birthLocation ? `, ${person.birthLocation}` : ''}
         </div>
       )}
@@ -1026,25 +1047,35 @@ export default function App() {
       {/* ── Page title ── */}
       <header style={{
         flexShrink: 0,
-        height: 44,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: THEME.toolbarBg,
-        borderBottom: `1px solid ${THEME.cardBorder}`,
-        boxShadow: '0 1px 4px rgba(100,60,0,0.08)',
+        height: 68,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: THEME.headerBg,
+        borderBottom: `2px solid ${THEME.cardBorder}`,
+        boxShadow: '0 2px 8px rgba(100,60,0,0.15)',
+        gap: 4,
       }}>
         <h1 style={{
-          margin: 0, fontSize: 17, fontWeight: 700,
-          color: THEME.textDark, fontFamily: 'inherit', letterSpacing: '0.02em',
+          margin: 0, fontSize: 20, fontWeight: 900,
+          color: THEME.textDark, fontFamily: THEME.fontTitle,
+          letterSpacing: '0.12em', textTransform: 'uppercase',
         }}>
           Allgeier – Uehara Family Tree
         </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.55 }}>
+          <div style={{ width: 40, height: 1, background: THEME.textMid }} />
+          <svg width="10" height="10" viewBox="0 0 12 12" fill={THEME.textMid}>
+            <polygon points="6,0 7.5,4.5 12,4.5 8.5,7.5 10,12 6,9 2,12 3.5,7.5 0,4.5 4.5,4.5" />
+          </svg>
+          <div style={{ width: 40, height: 1, background: THEME.textMid }} />
+        </div>
       </header>
 
       {/* ── Canvas + Detail panel ── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
       {/* ── Canvas ── */}
-      <div style={{ flex: 1, position: 'relative' }}>
+      <div style={{ flex: 1, position: 'relative', background: 'linear-gradient(160deg, #f7e8c8 0%, #eedcb0 50%, #f2e4c2 100%)' }}>
         <Toolbar onAddPerson={() => setShowAddModal(true)} onExport={handleExport} />
         <SearchBar people={people} onSelect={setSelectedId} />
 
@@ -1069,7 +1100,7 @@ export default function App() {
           maxZoom={3}
           attributionPosition="bottom-right"
         >
-          <Background color="#c8a86a" gap={28} size={1.5} />
+          <Background color="#c4a055" gap={32} size={1} />
           <Controls showInteractive={false} />
           <MiniMap
             nodeStrokeWidth={2}
@@ -1077,6 +1108,12 @@ export default function App() {
             maskColor={`rgba(245,230,200,0.75)`}
           />
         </ReactFlow>
+
+        {/* Parchment vignette overlay */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
+          background: 'radial-gradient(ellipse at center, transparent 55%, rgba(120,70,10,0.10) 100%)',
+        }} />
 
         {/* Snap-to-align guide line — shown while dragging near a relative's centre */}
         {snapGuide && (() => {
